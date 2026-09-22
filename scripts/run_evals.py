@@ -6,6 +6,10 @@ the pipeline works end-to-end before deployment.
 Does NOT require a live OpenAI key -- tests tool logic directly.
 """
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from src.mcp_servers.order_server import lookup_order, process_refund
 from src.mcp_servers.auth_server import reset_password, check_account_status
 from src.mcp_servers.docs_server import search_docs
