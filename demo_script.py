@@ -1,8 +1,11 @@
 import requests
 import json
-import time
+import os
 
-API_URL = "http://localhost:8001/v1/tickets"
+API_URL = os.getenv(
+    "RESOLVEAI_API_URL",
+    "http://resolveai-alb-1442038815.ap-south-1.elb.amazonaws.com",
+).rstrip("/") + "/v1/tickets"
 
 def print_result(response_data):
     print("--------------------------------------------------")
@@ -16,8 +19,6 @@ def print_result(response_data):
 
 def run_demo():
     print("Starting ResolveAI Demo...")
-    # Wait a moment if the server just started
-    time.sleep(2)
 
     tickets = [
         {
