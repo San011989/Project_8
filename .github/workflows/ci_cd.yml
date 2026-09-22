@@ -94,17 +94,16 @@ jobs:
       - name: Deploy to Amazon ECS Fargate
         run: |
           echo "Pushing new deployment to AWS ECS..."
-          # Update service with the pinned task definition (which injects OPENAI_API_KEY from Secrets Manager)
-          aws ecs update-service \
+
+          # Update ECS service and capture output
+          DEPLOY_OUT=$(aws ecs update-service \
             --cluster resolveai-cluster \
             --service resolveai-service \
             --task-definition resolveai-task:2 \
             --force-new-deployment \
-            --output json | python3 -c "
-import sys, json
-s = json.load(sys.stdin)['service']
-print(f\"Service: {s['serviceName']} | Status: {s['status']} | Desired: {s['desiredCount']}\")
-"
+            --query 'service.[serviceName,status,desiredCount]' \
+            --output text)
+          echo "Service update triggered: $DEPLOY_OUT"
 
           echo "Waiting for service to stabilise (max 10 minutes)..."
           for i in $(seq 1 20); do
