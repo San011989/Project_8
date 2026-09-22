@@ -16,8 +16,9 @@ on:
 env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: resolveai-api
+  ECS_TASK_DEFINITION: resolveai-task
   ECS_SERVICE: resolveai-service
-  ECS_CONTAINER_NAME: api
+  ECS_CONTAINER_NAME: resolveai-api
 
 permissions:
   contents: read
@@ -156,7 +157,7 @@ jobs:
       - name: Get current ECS task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition ${{ env.ECS_SERVICE }} \
+            --task-definition ${{ env.ECS_TASK_DEFINITION }} \
             --query taskDefinition > current-task-def.json
 
       - name: Render new task definition with new image
