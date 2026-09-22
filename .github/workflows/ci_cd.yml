@@ -15,10 +15,10 @@ on:
 
 env:
   AWS_REGION: ap-south-1
-  ECR_REPOSITORY: resolveai-app
+  ECR_REPOSITORY: resolveai-api
   ECS_TASK_DEFINITION: resolveai-task
   ECS_SERVICE: resolveai-service
-  ECS_CONTAINER_NAME: resolveai-app
+  ECS_CONTAINER_NAME: resolveai-api
 
 permissions:
   contents: read
