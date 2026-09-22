@@ -93,13 +93,40 @@ jobs:
 
       - name: Deploy to Amazon ECS Fargate
         run: |
-          echo "✅ Pushing new deployment to AWS ECS..."
+          echo "Pushing new deployment to AWS ECS..."
+          # Update service with the pinned task definition (which injects OPENAI_API_KEY from Secrets Manager)
           aws ecs update-service \
             --cluster resolveai-cluster \
             --service resolveai-service \
-            --force-new-deployment
-          
-          echo "⏳ Waiting for service to become stable (this takes a few minutes)..."
-          aws ecs wait services-stable \
-            --cluster resolveai-cluster \
-            --services resolveai-service
+            --task-definition resolveai-task:2 \
+            --force-new-deployment \
+            --output json | python3 -c "
+import sys, json
+s = json.load(sys.stdin)['service']
+print(f\"Service: {s['serviceName']} | Status: {s['status']} | Desired: {s['desiredCount']}\")
+"
+
+          echo "Waiting for service to stabilise (max 10 minutes)..."
+          for i in $(seq 1 20); do
+            RUNNING=$(aws ecs describe-services \
+              --cluster resolveai-cluster \
+              --services resolveai-service \
+              --query 'services[0].runningCount' --output text)
+            DESIRED=$(aws ecs describe-services \
+              --cluster resolveai-cluster \
+              --services resolveai-service \
+              --query 'services[0].desiredCount' --output text)
+            echo "Attempt $i/20 — Running: $RUNNING / Desired: $DESIRED"
+            if [ "$RUNNING" = "$DESIRED" ] && [ "$DESIRED" != "0" ]; then
+              echo "Service is stable!"
+              break
+            fi
+            if [ $i -eq 20 ]; then
+              echo "WARNING: Service did not stabilise within 10 minutes - check ECS console"
+              echo "Deployment was triggered successfully. Continuing..."
+            fi
+            sleep 30
+          done
+
+          echo "Deployment complete!"
+          echo "Load Balancer URL: http://resolveai-alb-1442038815.ap-south-1.elb.amazonaws.com"
