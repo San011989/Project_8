@@ -29,10 +29,10 @@ $SERVICE_NAME = "$PROJECT_NAME-service"
 $TASK_FAMILY = "$PROJECT_NAME-task"
 $PORT = 8000
 
-Write-Host "🚀 Starting AWS Infrastructure Setup for $PROJECT_NAME in $AWS_REGION..." -ForegroundColor Cyan
+Write-Host "Starting AWS Infrastructure Setup for $PROJECT_NAME in $AWS_REGION..." -ForegroundColor Cyan
 
 # 1. Create ECR Repository
-Write-Host "📦 Creating ECR Repository: $ECR_REPO_NAME..."
+Write-Host "Creating ECR Repository: $ECR_REPO_NAME..."
 try {
     $ecr = aws ecr describe-repositories --repository-names $ECR_REPO_NAME --region $AWS_REGION 2>$null
     Write-Host "ECR repository already exists." -ForegroundColor Yellow
@@ -42,13 +42,13 @@ try {
 }
 
 # 2. Create ECS Cluster
-Write-Host "🏗️ Creating ECS Cluster: $CLUSTER_NAME..."
+Write-Host "Creating ECS Cluster: $CLUSTER_NAME..."
 aws ecs create-cluster --cluster-name $CLUSTER_NAME --region $AWS_REGION | Out-Null
 Write-Host "Created ECS cluster." -ForegroundColor Green
 
 # 3. Create IAM Execution Role for ECS Tasks
 $ROLE_NAME = "${PROJECT_NAME}EcsExecutionRole"
-Write-Host "🔑 Creating IAM Role: $ROLE_NAME..."
+Write-Host "Creating IAM Role: $ROLE_NAME..."
 $trustPolicy = @"
 {
   "Version": "2012-10-17",
@@ -79,7 +79,7 @@ $EXECUTION_ROLE_ARN = "arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
 
 # 4. Create CloudWatch Log Group
 $LOG_GROUP = "/ecs/$PROJECT_NAME"
-Write-Host "📝 Creating CloudWatch Log Group: $LOG_GROUP..."
+Write-Host "Creating CloudWatch Log Group: $LOG_GROUP..."
 try {
     aws logs create-log-group --log-group-name $LOG_GROUP --region $AWS_REGION 2>$null
     Write-Host "Created log group." -ForegroundColor Green
@@ -88,7 +88,7 @@ try {
 }
 
 # 5. Create basic VPC resources (Using default VPC for simplicity)
-Write-Host "🌐 Retrieving default VPC subnets..."
+Write-Host "Retrieving default VPC subnets..."
 $VPC_ID = (aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query "Vpcs[0].VpcId" --output text)
 $SUBNETS = (aws ec2 describe-subnets --filters Name=vpc-id,Values=$VPC_ID --query "Subnets[*].SubnetId" --output text).Split(" ")
 
@@ -108,7 +108,7 @@ try {
 }
 
 # 6. Create Application Load Balancer
-Write-Host "⚖️ Creating Load Balancer..."
+Write-Host "Creating Load Balancer..."
 $ALB_NAME = "${PROJECT_NAME}-alb"
 try {
     $ALB_ARN = (aws elbv2 describe-load-balancers --names $ALB_NAME --query "LoadBalancers[0].LoadBalancerArn" --output text 2>$null)
@@ -121,7 +121,7 @@ try {
 
 $ALB_DNS = (aws elbv2 describe-load-balancers --load-balancer-arns $ALB_ARN --query "LoadBalancers[0].DNSName" --output text)
 
-Write-Host "🎯 Creating Target Group..."
+Write-Host "Creating Target Group..."
 $TG_NAME = "${PROJECT_NAME}-tg"
 try {
     $TG_ARN = (aws elbv2 describe-target-groups --names $TG_NAME --query "TargetGroups[0].TargetGroupArn" --output text 2>$null)
@@ -131,7 +131,7 @@ try {
     Write-Host "Created target group." -ForegroundColor Green
 }
 
-Write-Host "🎧 Creating ALB Listener..."
+Write-Host "Creating ALB Listener..."
 try {
     $LISTENER_ARN = (aws elbv2 describe-listeners --load-balancer-arn $ALB_ARN --query "Listeners[0].ListenerArn" --output text 2>$null)
     if (-not $LISTENER_ARN -or $LISTENER_ARN -eq "None") { throw "Not found" }
@@ -142,7 +142,7 @@ try {
 }
 
 # 7. Create Task Definition
-Write-Host "📋 Registering ECS Task Definition..."
+Write-Host "Registering ECS Task Definition..."
 $TASK_DEF = @"
 {
   "family": "$TASK_FAMILY",
@@ -189,7 +189,7 @@ Remove-Item $TASK_DEF_FILE
 Write-Host "Registered task definition." -ForegroundColor Green
 
 # 8. Create ECS Service
-Write-Host "🚀 Creating ECS Service..."
+Write-Host "Creating ECS Service..."
 try {
     $serviceStatus = (aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].status" --output text 2>$null)
     if ($serviceStatus -eq "ACTIVE") {
