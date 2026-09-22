@@ -47,7 +47,7 @@ jobs:
           # if your tests mock the LLM calls (recommended so CI doesn't
           # depend on a live OpenAI key / cost money on every push).
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'sk-test-placeholder' }}
-        run: pytest tests/ -v --junitxml=test-results.xml
+        run: python -m pytest tests/ -v --junitxml=test-results.xml
 
       - name: Upload test results
         if: always()
