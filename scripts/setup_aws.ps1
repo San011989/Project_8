@@ -15,6 +15,11 @@ Requirements:
 
 $ErrorActionPreference = "Stop"
 
+# Ensure AWS CLI is in the PATH (fixes 'aws is not recognized' error in current terminal)
+if (Test-Path "C:\Program Files\Amazon\AWSCLIV2\") {
+    $env:PATH += ";C:\Program Files\Amazon\AWSCLIV2\"
+}
+
 # Configuration
 $AWS_REGION = "ap-south-1"
 $PROJECT_NAME = "resolveai"
