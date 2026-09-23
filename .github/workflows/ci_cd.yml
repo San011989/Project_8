@@ -3,8 +3,8 @@ name: CI/CD - ResolveAI Ticket Resolution Agent
 # Mirrors ARCHITECTURE.md "Delivery Workflow":
 #   Push code -> Run tests and AI evals -> All checks pass? -> Build Docker image -> Deploy to cloud -> Live
 #
-# Repo is a single FastAPI service (Dockerfile at repo root, one requirements.txt,
-# entrypoint src.api.main:app). MCP servers run in-process, not as separate containers.
+# Single workflow (do not also keep aws.yml - having two workflows both deploying
+# to ECS on push to main will race each other).
 
 on:
   push:
@@ -16,13 +16,14 @@ on:
 env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: resolveai-api
-  ECS_TASK_DEFINITION: resolveai-task
+  ECS_TASK_DEFINITION_FILE: .aws/task-definition.json   # checked into the repo, see below
   ECS_SERVICE: resolveai-service
+  ECS_CLUSTER: resolveai-cluster
   ECS_CONTAINER_NAME: resolveai-app
 
 permissions:
   contents: read
-  id-token: write   # for AWS OIDC login, no static keys
+  id-token: write   # required for AWS OIDC login (no static access keys)
 
 jobs:
   # ---- "Run tests" ----
@@ -45,9 +46,6 @@ jobs:
 
       - name: Run test suite
         env:
-          # tests that exercise the agent need a key; a dummy value is fine
-          # if your tests mock the LLM calls (recommended so CI doesn't
-          # depend on a live OpenAI key / cost money on every push).
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'sk-test-placeholder' }}
         run: python -m pytest tests/ -v --junitxml=test-results.xml
 
@@ -77,14 +75,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # EVALUATION_REPORT.md in the repo currently reads as a one-off,
-      # hand-produced report (500 cases, Gemini 2.5 Pro as judge) rather
-      # than something regenerated every push. For this gate to mean
-      # anything in CI, add a script under scripts/ (e.g. scripts/run_evals.py)
-      # that runs a smaller, fast eval subset against mocked tools/LLM and
-      # exits non-zero if accuracy/escalation thresholds aren't met.
-      # Until that script exists, this step is a placeholder -- replace the
-      # command below once you've added it.
       - name: Run agent evaluation suite
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -103,6 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image-tag: ${{ steps.meta.outputs.tag }}
+      registry: ${{ steps.ecr-login.outputs.registry }}
     steps:
       - uses: actions/checkout@v4
 
@@ -151,29 +142,20 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
-      - name: Get current ECS task definition
-        run: |
-          aws ecs describe-task-definition \
-            --task-definition ${{ env.ECS_TASK_DEFINITION }} \
-            --query taskDefinition > current-task-def.json
-
       - name: Render new task definition with new image
         id: render
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: current-task-def.json
+          task-definition: ${{ env.ECS_TASK_DEFINITION_FILE }}
           container-name: ${{ env.ECS_CONTAINER_NAME }}
-          image: ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ needs.build-and-push.outputs.image-tag }}
+          image: ${{ needs.build-and-push.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ needs.build-and-push.outputs.image-tag }}
 
-      - name: Deploy (waits for ALB health check to go green)
+      - name: Deploy (waits for the service to become stable)
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE }}
-          cluster: ${{ secrets.ECS_CLUSTER_NAME }}
+          cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
           # Enable deploymentCircuitBreaker {enable:true, rollback:true} on the
           # ECS service itself so a failed health check auto-rolls back.
